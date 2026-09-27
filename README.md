@@ -74,8 +74,6 @@ npm run build
 
 ## 文档
 
-- [开发文档](DEVELOPMENT.md)
-- [接口文档](接口文档.md)
 - [前端说明](frontend/README.md)
 
 ## 主要限制
