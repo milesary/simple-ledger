@@ -1,0 +1,19 @@
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = [
+  ".venv",
+  ".pytest_cache",
+  "app/static",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = [
+  "B008", # FastAPI dependencies are intentionally declared in defaults.
+  "E501", # Long lines are handled by the formatter when a file is touched.
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"

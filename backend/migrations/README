@@ -1,0 +1,9 @@
+Alembic migration scripts for SimpleLedger.
+
+Run all migrations:
+
+    python -m alembic upgrade head
+
+Create a new migration after changing SQLAlchemy models:
+
+    python -m alembic revision --autogenerate -m "describe change"

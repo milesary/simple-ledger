@@ -1,0 +1,12 @@
+fastapi==0.136.3
+uvicorn==0.48.0
+python-multipart==0.0.20
+sqlalchemy==2.0.41
+PyMySQL==1.1.1
+alembic==1.20.0
+aiosmtplib==3.0.2
+python-dotenv==1.1.0
+itsdangerous==2.2.0
+httpx==0.28.1
+pytest==8.3.5
+ruff==0.16.9
