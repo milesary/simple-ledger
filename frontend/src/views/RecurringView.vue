@@ -506,8 +506,8 @@ onMounted(load)
   width: 42px;
   height: 42px;
   flex: 0 0 auto;
-  color: #39789b;
-  background: #e8f5fb;
+  color: var(--sl-accent-text);
+  background: var(--sl-accent-soft);
   border-radius: 9px;
   place-items: center;
 }
@@ -534,7 +534,7 @@ onMounted(load)
 }
 
 .recurring-summary__item strong {
-  color: #2d5c78;
+  color: var(--text-primary);
   font-size: 1.55rem;
   line-height: 1.2;
 }
@@ -632,7 +632,7 @@ onMounted(load)
 .recurring-card__meta dd {
   margin: 0.18rem 0 0;
   overflow: hidden;
-  color: #456b82;
+  color: var(--text-primary);
   font-size: 0.78rem;
   font-weight: 700;
   text-overflow: ellipsis;

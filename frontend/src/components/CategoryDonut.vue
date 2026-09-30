@@ -36,14 +36,15 @@ const props = defineProps({
   },
 })
 
-const colors = ['#69b7e6', '#4eae8b', '#ef7185', '#8fb7d3', '#6f88c8']
+// 图表分类色板：限定在浅蓝主色系（sky / blue / teal），不使用紫、粉
+const colors = ['#0284c7', '#38bdf8', '#0ea5e9', '#2dd4bf', '#64748b']
 
 const total = computed(() =>
   props.categories.reduce((sum, item) => sum + Number(item.amount || 0), 0),
 )
 
 const gradient = computed(() => {
-  if (!total.value) return 'conic-gradient(#e5f2f9 0 100%)'
+  if (!total.value) return 'conic-gradient(#e0f2fe 0 100%)'
 
   let start = 0
   const parts = props.categories.map((item, index) => {

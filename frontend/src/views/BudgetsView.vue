@@ -346,7 +346,7 @@ onMounted(load)
   align-items: center;
   min-width: 150px;
   overflow: hidden;
-  background: #fff;
+  background: var(--sl-control-bg);
   border: 1px solid var(--sl-border-strong);
   border-radius: var(--sl-radius-input);
 }

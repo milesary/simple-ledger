@@ -334,7 +334,7 @@ onMounted(load)
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  color: #3d6c88;
+  color: var(--text-primary);
   font-weight: 700;
   white-space: nowrap;
 }

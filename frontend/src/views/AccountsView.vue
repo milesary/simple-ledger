@@ -363,7 +363,7 @@ onMounted(load)
 
 .account-card__head strong {
   overflow: hidden;
-  color: #315972;
+  color: var(--text-primary);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -395,7 +395,7 @@ onMounted(load)
 }
 
 .account-card__balance strong {
-  color: #2d5c78;
+  color: var(--text-primary);
   font-size: 1.55rem;
   font-variant-numeric: tabular-nums;
 }
