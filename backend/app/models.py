@@ -78,6 +78,28 @@ class Category(Base):
     type: Mapped[str] = mapped_column(String(10), nullable=False)  # income / expense
 
 
+class LoginAttempt(Base):
+    """密码登录失败次数，用于按邮箱限流。
+
+    邮箱唯一：每个邮箱只保留一行。连续失败达到 LOGIN_MAX_ATTEMPTS 后写入
+    locked_until，在窗口内即使密码正确也拒绝登录。登录成功后整行重置。
+    """
+    __tablename__ = "login_attempts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    email: Mapped[str] = mapped_column(String(254), nullable=False, unique=True)
+    failed_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
+    window_started_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
+    last_failed_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+
 class Account(Base):
     """资金账户，例如现金、银行卡、信用卡和投资账户。"""
     __tablename__ = "accounts"

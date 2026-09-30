@@ -51,6 +51,10 @@ CODE_SEND_INTERVAL_SECONDS = int(os.getenv("CODE_SEND_INTERVAL_SECONDS", "60"))
 CODE_MAX_ATTEMPTS = int(os.getenv("CODE_MAX_ATTEMPTS", "5"))
 CODE_SEND_MAX_PER_HOUR = int(os.getenv("CODE_SEND_MAX_PER_HOUR", "5"))
 
+# 密码登录限流：同一邮箱连续失败达到上限后锁定一段时间
+LOGIN_MAX_ATTEMPTS = int(os.getenv("LOGIN_MAX_ATTEMPTS", "5"))
+LOGIN_LOCKOUT_MINUTES = int(os.getenv("LOGIN_LOCKOUT_MINUTES", "15"))
+
 # 邮件配置
 MAIL_HOST = os.getenv("MAIL_HOST", "smtp.qq.com")
 MAIL_PORT = int(os.getenv("MAIL_PORT", "465"))

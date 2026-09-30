@@ -31,6 +31,7 @@
 | --- | --- |
 | 账号注册 | 已实现，邮箱密码注册 |
 | 密码登录 | 已实现，Session Cookie 登录态 |
+| 密码登录限流 | 已实现，按邮箱统计连续失败并在达到上限后锁定 |
 | 邮箱验证码登录 | 已实现，需先注册账号 |
 | 退出登录 | 已实现 |
 | 管理员后台 | 已实现 Vue 页面和 JSON API |
@@ -237,6 +238,8 @@ Vue 页面通过 `credentials: include` 携带 `simple_ledger_session` Cookie。
 | `CODE_SEND_INTERVAL_SECONDS` | `60` | 验证码发送最小间隔 |
 | `CODE_MAX_ATTEMPTS` | `5` | 单个验证码最大错误次数 |
 | `CODE_SEND_MAX_PER_HOUR` | `5` | 同一邮箱每小时发送上限 |
+| `LOGIN_MAX_ATTEMPTS` | `5` | 密码登录连续失败上限，达到后锁定 |
+| `LOGIN_LOCKOUT_MINUTES` | `15` | 密码登录锁定时长（分钟），同时用作失败计数窗口 |
 | `MAIL_HOST` | `smtp.qq.com` | SMTP 地址 |
 | `MAIL_PORT` | `465` | SMTP 端口 |
 | `MAIL_USERNAME` | 空 | SMTP 登录账号 |
@@ -286,7 +289,22 @@ Vue 页面通过 `credentials: include` 携带 `simple_ledger_session` Cookie。
 email + created_at
 ```
 
-### 8.3 categories
+### 8.3 login_attempts
+
+密码登录失败计数，按邮箱限流用。
+
+| 字段 | 类型 | 约束 |
+| --- | --- | --- |
+| id | Integer | 主键 |
+| email | String(254) | 唯一、非空 |
+| failed_count | Integer | 非空，默认 0 |
+| window_started_at | DateTime | 非空，当前计数窗口起点 |
+| last_failed_at | DateTime | 非空 |
+| locked_until | DateTime | 可空，非空表示锁定中 |
+
+邮箱唯一，因此每个邮箱只保留一行；登录成功后该行被删除。
+
+### 8.4 categories
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -301,7 +319,7 @@ income: 工资、理财收益、兼职
 expense: 餐饮、交通、购物、娱乐、居住、医疗、教育、其他
 ```
 
-### 8.4 transactions
+### 8.5 transactions
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -328,7 +346,7 @@ user_id + import_hash
 user_id + account_id
 ```
 
-### 8.5 budgets
+### 8.6 budgets
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -347,7 +365,7 @@ user_id + account_id
 分类预算：user_id + month + category_id
 ```
 
-### 8.6 accounts
+### 8.7 accounts
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -360,7 +378,7 @@ user_id + account_id
 
 账户余额 = 初始余额 + 收入 - 支出 + 转入 - 转出。
 
-### 8.7 transfers
+### 8.8 transfers
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -372,7 +390,7 @@ user_id + account_id
 | occurred_on | Date | 非空 |
 | note | String(200) | 可空 |
 
-### 8.8 recurring_transactions
+### 8.9 recurring_transactions
 
 | 字段 | 类型 | 约束 |
 | --- | --- | --- |
@@ -406,6 +424,17 @@ user_id + account_id
 
 1. 邮箱密码登录。
 2. 邮箱验证码登录。
+
+密码登录带按邮箱的失败限流：
+
+- 连续失败达到 `LOGIN_MAX_ATTEMPTS`（默认 5）次后锁定 `LOGIN_LOCKOUT_MINUTES`（默认 15）分钟。
+- 锁定期间即使密码正确也被拒绝，提示包含剩余分钟数。
+- 计数窗口等于锁定时长；窗口内未达上限不锁定。
+- 登录成功后清空该邮箱的失败计数。
+- 不存在的邮箱同样计入限流，但提示文案保持不变。
+- 管理员重置该账号密码会清除失败计数并解除锁定。
+
+注意：现有失败文案区分"账号不存在""密码错误""账号已禁用"，因此接口可用于枚举已注册邮箱；限流只降低单邮箱暴力破解速度，不消除枚举。
 
 两类登录成功后都会：
 
@@ -670,6 +699,7 @@ python -m pytest -q
 - 未登录访问受保护 API 返回 `401`。
 - 非允许邮箱域名被拒绝。
 - 注册、重复注册、错误密码和正确密码登录。
+- 密码登录失败限流：失败计数、达到上限后锁定、正确密码也被拒、锁定到期恢复、成功后清零、管理员重置密码解除锁定、不存在账号同样计数。
 - 验证码发送和验证码登录。
 - 当前用户、分类、流水和预算接口。
 - 管理员账号查询、启停、角色切换和密码重置。

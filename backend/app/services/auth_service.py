@@ -1,4 +1,5 @@
 """认证服务：验证码生成、发送频率限制、验证与用户创建。"""
+import math
 from datetime import timedelta
 from typing import Optional
 
@@ -15,8 +16,10 @@ from app.config import (
     CODE_MAX_ATTEMPTS,
     CODE_SEND_INTERVAL_SECONDS,
     CODE_SEND_MAX_PER_HOUR,
+    LOGIN_LOCKOUT_MINUTES,
+    LOGIN_MAX_ATTEMPTS,
 )
-from app.models import LoginCode, User
+from app.models import LoginAttempt, LoginCode, User
 from app.security import (
     generate_login_code,
     hash_code,
@@ -85,19 +88,96 @@ class AuthService:
         self.db.refresh(user)
         return user
 
+    def _get_attempt(self, email: str) -> Optional[LoginAttempt]:
+        """读取该邮箱的失败计数行。"""
+        return self.db.scalar(select(LoginAttempt).where(LoginAttempt.email == email))
+
+    def _check_login_lock(self, email: str) -> None:
+        """在验证密码前检查锁定状态，命中则直接拒绝。"""
+        attempt = self._get_attempt(email)
+        if attempt is None or attempt.locked_until is None:
+            return
+
+        now = utc_now()
+        if attempt.locked_until <= now:
+            # 锁定已过期，清理计数，让本次登录按正常流程继续。
+            self.db.delete(attempt)
+            self.db.commit()
+            return
+
+        remaining_seconds = (attempt.locked_until - now).total_seconds()
+        # 用 ceil 而不是 floor+1：刚锁定时剩余 14 分 59.9 秒应显示 15 分钟而不是 16。
+        remaining_minutes = max(1, math.ceil(remaining_seconds / 60))
+        raise AuthError(
+            f"密码错误次数过多，账号已锁定，请在 {remaining_minutes} 分钟后重试"
+        )
+
+    def _record_failed_login(self, email: str) -> None:
+        """记录一次密码失败，达到上限时写入锁定时间。"""
+        now = utc_now()
+        attempt = self._get_attempt(email)
+        if attempt is None:
+            attempt = LoginAttempt(
+                email=email,
+                failed_count=0,
+                window_started_at=now,
+                last_failed_at=now,
+            )
+            self.db.add(attempt)
+
+        window_seconds = LOGIN_LOCKOUT_MINUTES * 60
+        window_expired = (
+            attempt.window_started_at is not None
+            and (now - attempt.window_started_at).total_seconds() > window_seconds
+        )
+        if window_expired:
+            attempt.failed_count = 0
+            attempt.window_started_at = now
+
+        attempt.failed_count += 1
+        attempt.last_failed_at = now
+
+        if attempt.failed_count >= LOGIN_MAX_ATTEMPTS:
+            # 归整到整秒再入库：MySQL DATETIME 会丢弃微秒，若写入带微秒的值再读回，
+            # 剩余时长会比配置值略大（例如 900.4 秒），向上取整就会多报一分钟。
+            locked_until = (now + timedelta(minutes=LOGIN_LOCKOUT_MINUTES)).replace(
+                microsecond=0
+            )
+            attempt.locked_until = locked_until
+
+        self.db.commit()
+
+    def _clear_failed_logins(self, email: str) -> None:
+        """登录成功后清除该邮箱的失败计数。"""
+        attempt = self._get_attempt(email)
+        if attempt is not None:
+            self.db.delete(attempt)
+            self.db.commit()
+
     def login_with_password(self, email: str, password: str) -> User:
-        """使用邮箱和密码登录；不存在的账号必须提示先注册。"""
+        """使用邮箱和密码登录；连续失败达到上限后按邮箱临时锁定。"""
         email = normalize_email(email)
         user = self.db.scalar(select(User).where(User.email == email))
+
+        self._check_login_lock(email)
+
         if user is None:
+            self._record_failed_login(email)
             raise AuthError("该账号不存在，请先注册")
         if not user.is_active:
             raise AuthError("该账号已被禁用，请联系管理员")
         if not user.password_hash:
             raise AuthError("该账号未设置密码，请使用验证码登录")
         if not verify_password(password, user.password_hash):
+            self._record_failed_login(email)
+            attempt = self._get_attempt(email)
+            if attempt is not None and attempt.locked_until is not None:
+                raise AuthError(
+                    f"密码错误次数过多，账号已锁定 {LOGIN_LOCKOUT_MINUTES} 分钟"
+                )
             raise AuthError("密码错误")
 
+        self._clear_failed_logins(email)
         user.last_login_at = utc_now()
         self.db.commit()
         self.db.refresh(user)

@@ -12,6 +12,7 @@ from app.dependencies import require_admin
 from app.models import (
     Account,
     Budget,
+    LoginAttempt,
     LoginCode,
     RecurringTransaction,
     Transaction,
@@ -156,6 +157,8 @@ def reset_password(
         raise HTTPException(status_code=400, detail=error)
 
     user.password_hash = hash_password(payload.new_password)
+    # 解除密码登录锁定，否则用户拿到新密码后仍会被旧的失败计数挡住。
+    db.execute(delete(LoginAttempt).where(LoginAttempt.email == user.email))
     db.commit()
     return {"success": True, "message": f"{user.email} 的密码已重置"}
 
@@ -185,6 +188,7 @@ def delete_user(
         db.execute(delete(Budget).where(Budget.user_id == user.id))
         db.execute(delete(Account).where(Account.user_id == user.id))
         db.execute(delete(LoginCode).where(LoginCode.email == user.email))
+        db.execute(delete(LoginAttempt).where(LoginAttempt.email == user.email))
         db.delete(user)
         db.commit()
     except Exception:
