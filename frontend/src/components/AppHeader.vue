@@ -37,8 +37,8 @@
         <button
           class="icon-button"
           type="button"
-          aria-label="退出登录"
-          title="退出登录"
+          :aria-label="logoutError || '退出登录'"
+          :title="logoutError || '退出登录'"
           :disabled="loggingOut"
           @click="logout"
         >
@@ -46,6 +46,8 @@
         </button>
       </div>
     </div>
+
+    <p v-if="logoutError" class="app-header__error" role="alert">{{ logoutError }}</p>
   </header>
 </template>
 
@@ -67,15 +69,24 @@ const emit = defineEmits(['toggle-nav'])
 const router = useRouter()
 const { user } = useAuth()
 const loggingOut = ref(false)
+const logoutError = ref('')
 
 async function logout() {
   loggingOut.value = true
+  logoutError.value = ''
   try {
     await authApi.logout()
-  } finally {
-    clearCurrentUser()
+  } catch (err) {
+    // 登出请求失败时服务端 Session 仍然有效，绝不能假装已退出，
+    // 否则共享终端上的下一位使用者刷新页面就会回到登录态。
+    logoutError.value = err?.message
+      ? `退出失败：${err.message}`
+      : '退出失败，请检查网络后重试'
     loggingOut.value = false
-    router.replace({ name: 'login' })
+    return
   }
+  clearCurrentUser()
+  loggingOut.value = false
+  router.replace({ name: 'login' })
 }
 </script>

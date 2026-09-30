@@ -10,7 +10,7 @@ from app.dependencies import require_user
 from app.models import Account, Category, Transaction
 from app.services.account_service import AccountService
 from app.services.recurring_service import RecurringTransactionService
-from app.services.stats_service import StatsService
+from app.services.stats_service import StatsService, parse_year
 
 router = APIRouter(prefix="/api", tags=["dashboard"])
 
@@ -23,13 +23,16 @@ def _current_month() -> str:
 
 @router.get("/dashboard")
 def dashboard(
-    year: int | None = None,
+    year: str | None = None,
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
     """概览数据：月度汇总、年度趋势、当月分类占比、预算、最近 5 条流水。"""
     today = date.today()
-    current_year = year or today.year
+    try:
+        current_year = parse_year(year, default=today.year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     current_month = _current_month()
 
     RecurringTransactionService(db).materialize_due(user.id)
@@ -89,14 +92,18 @@ def dashboard(
 
 @router.get("/stats/monthly")
 def api_monthly(
-    year: int = Query(..., ge=1900, le=9999),
+    year: str = Query(...),
     db: Session = Depends(get_db),
     user=Depends(require_user),
 ):
     """返回指定年份各月收支趋势。"""
     stats = StatsService(db)
-    trend = stats.get_monthly_trend(user.id, year)
-    return {"year": year, "trend": trend}
+    try:
+        parsed_year = parse_year(year)
+        trend = stats.get_monthly_trend(user.id, parsed_year)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return {"year": parsed_year, "trend": trend}
 
 
 @router.get("/stats/categories")

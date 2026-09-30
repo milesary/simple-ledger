@@ -23,6 +23,26 @@ def month_bounds(month: str) -> tuple[date, date]:
     return start, end
 
 
+# 趋势查询需要构造 date(year + 1, 1, 1)，因此年份上界是 9998 而不是 9999。
+MIN_STATS_YEAR = 1900
+MAX_STATS_YEAR = 9998
+
+
+def parse_year(value: str | int | None, *, default: int | None = None) -> int:
+    """解析并校验统计年份，越界时抛 ValueError 由路由转为 400。"""
+    if value is None or value == "":
+        if default is None:
+            raise ValueError("year 不能为空")
+        return default
+    try:
+        year = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("year 必须是整数年份") from exc
+    if year < MIN_STATS_YEAR or year > MAX_STATS_YEAR:
+        raise ValueError(f"year 必须在 {MIN_STATS_YEAR}-{MAX_STATS_YEAR} 之间")
+    return year
+
+
 class StatsService:
     """统计与预算服务。"""
 

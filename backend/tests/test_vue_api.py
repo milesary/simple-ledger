@@ -277,3 +277,101 @@ def test_vue_spa_and_api_flow(monkeypatch):
                 db.close()
     finally:
         app.dependency_overrides.clear()
+
+
+def test_disabled_user_session_is_rejected_immediately(monkeypatch):
+    """管理员禁用账号后，该账号已存在的 Session 必须立刻失效。"""
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    testing_session = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+
+    db = testing_session()
+    db.add(Category(name="餐饮", type="expense"))
+    db.add(
+        User(
+            email="admin@qq.com",
+            password_hash=hash_password("Admin12345"),
+            is_admin=True,
+            is_active=True,
+        )
+    )
+    db.add(
+        User(
+            email="123456@qq.com",
+            password_hash=hash_password("Pass12345"),
+            is_admin=False,
+            is_active=True,
+        )
+    )
+    db.commit()
+    db.close()
+
+    def override_get_db():
+        session = testing_session()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    async def fake_send_login_code(email: str, code: str) -> None:
+        return None
+
+    monkeypatch.setattr(mail_service.mail_service, "send_login_code", fake_send_login_code)
+    app.dependency_overrides[get_db] = override_get_db
+
+    try:
+        # 普通用户先正常登录，确认 Session 生效。
+        with TestClient(app) as user_client:
+            login = user_client.post(
+                "/api/auth/login",
+                json={"email": "123456@qq.com", "password": "Pass12345"},
+            )
+            assert login.status_code == 200
+            assert login.json()["success"] is True
+            assert user_client.get("/api/dashboard").status_code == 200
+
+            # 管理员在另一个客户端禁用该账号。
+            with TestClient(app) as admin_client:
+                admin_login = admin_client.post(
+                    "/api/auth/login",
+                    json={"email": "admin@qq.com", "password": "Admin12345"},
+                )
+                assert admin_login.status_code == 200
+                assert admin_login.json()["success"] is True
+
+                banned = testing_session()
+                try:
+                    target = (
+                        banned.query(User).filter(User.email == "123456@qq.com").one()
+                    )
+                    target_id = target.id
+                finally:
+                    banned.close()
+
+                toggle = admin_client.post(f"/api/admin/users/{target_id}/toggle")
+                assert toggle.status_code == 200
+                assert toggle.json()["user"]["is_active"] is False
+
+            # 原有的 Session 不能继续访问任何业务接口。
+            blocked = user_client.get("/api/dashboard")
+            assert blocked.status_code == 401
+            assert blocked.json()["detail"] == "账号已被禁用"
+
+            # 受保护接口一律拒绝，并且 Session 已被清空。
+            assert user_client.get("/api/transactions").status_code == 401
+            assert user_client.get("/api/auth/me").status_code == 401
+
+            # 被禁用后重新登录也必须失败。
+            relogin = user_client.post(
+                "/api/auth/login",
+                json={"email": "123456@qq.com", "password": "Pass12345"},
+            )
+            assert relogin.status_code == 200
+            assert relogin.json()["success"] is False
+            assert relogin.json()["message"] == "该账号已被禁用，请联系管理员"
+    finally:
+        app.dependency_overrides.clear()

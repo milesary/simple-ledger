@@ -23,6 +23,11 @@ def require_user(request: Request, db: Session = Depends(get_db)) -> User:
         # session 中的用户不存在，清空 session
         request.session.clear()
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="用户不存在，请重新登录")
+    if not user.is_active:
+        # 管理员禁用账号后，已存在的 Session 必须立即失效，
+        # 否则被禁用用户仍可继续访问业务接口直到 Cookie 过期。
+        request.session.clear()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号已被禁用")
     return user
 
 

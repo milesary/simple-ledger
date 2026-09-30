@@ -117,15 +117,18 @@ class AuthService:
 
         now = utc_now()
 
-        # 60 秒内不能重复发送
+        # 60 秒内不能重复发送。历史数据可能带有非 UTC 的 created_at，
+        # 这里把负的间隔（说明记录时间在未来）视为 0，避免误判为"刚刚发过"而长时间拒绝重发。
         recent = self.db.scalar(
             select(LoginCode)
             .where(LoginCode.email == email)
             .order_by(desc(LoginCode.created_at))
             .limit(1)
         )
-        if recent and (now - recent.created_at).total_seconds() < CODE_SEND_INTERVAL_SECONDS:
-            raise AuthError("验证码发送过于频繁，请稍后再试")
+        if recent and recent.created_at is not None:
+            elapsed = max(0.0, (now - recent.created_at).total_seconds())
+            if elapsed < CODE_SEND_INTERVAL_SECONDS:
+                raise AuthError("验证码发送过于频繁，请稍后再试")
 
         # 1 小时内最多发送 N 次
         one_hour_ago = now - timedelta(hours=1)
@@ -133,6 +136,7 @@ class AuthService:
             select(func.count()).select_from(LoginCode).where(
                 LoginCode.email == email,
                 LoginCode.created_at >= one_hour_ago,
+                LoginCode.created_at <= now,
             )
         ) or 0
         if recent_count >= CODE_SEND_MAX_PER_HOUR:

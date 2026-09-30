@@ -218,6 +218,7 @@ const data = ref({
   recent_transactions: [],
 })
 let controller = null
+let requestId = 0
 
 const year = computed(() => Number(route.query.year) || new Date().getFullYear())
 const years = computed(() => {
@@ -228,6 +229,9 @@ const years = computed(() => {
 async function load() {
   controller?.abort()
   controller = new AbortController()
+  // 被中断的旧请求其 finally 仍会执行，因此用递增的 requestId 区分归属，
+  // 避免旧请求把新请求的 loading 提前置为 false 而闪现上一年份的数据。
+  const currentRequest = ++requestId
   loading.value = true
   error.value = ''
 
@@ -237,9 +241,13 @@ async function load() {
       signal: controller.signal,
     })
   } catch (err) {
-    if (err.name !== 'AbortError') error.value = err.message
+    if (err.name !== 'AbortError' && currentRequest === requestId) {
+      error.value = err.message
+    }
   } finally {
-    loading.value = false
+    if (currentRequest === requestId) {
+      loading.value = false
+    }
   }
 }
 

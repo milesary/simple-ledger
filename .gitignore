@@ -31,6 +31,8 @@ env/
 
 # 测试与覆盖率
 .pytest_cache/
+.pytest-tmp/
+.pt-*/
 .ruff_cache/
 .coverage
 htmlcov/
@@ -44,7 +46,5 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
-# 仅本地保留，不上传到 GitHub
-/.github/
-/DEVELOPMENT.md
-/接口文档.md
+# 注意：.github/（CI 工作流）、DEVELOPMENT.md 和 接口文档.md 需要随仓库提交，
+# 不要在这里忽略它们——否则 GitHub 上既没有 CI 也没有开发文档。

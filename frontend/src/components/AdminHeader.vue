@@ -26,6 +26,7 @@
         <button
           class="admin-logout"
           type="button"
+          :title="logoutError || '退出登录'"
           :disabled="loggingOut"
           @click="logout"
         >
@@ -34,6 +35,8 @@
         </button>
       </div>
     </div>
+
+    <p v-if="logoutError" class="admin-header__error" role="alert">{{ logoutError }}</p>
   </header>
 </template>
 
@@ -47,15 +50,23 @@ import { clearCurrentUser, useAuth } from '../composables/useAuth'
 const router = useRouter()
 const { user } = useAuth()
 const loggingOut = ref(false)
+const logoutError = ref('')
 
 async function logout() {
   loggingOut.value = true
+  logoutError.value = ''
   try {
     await authApi.logout()
-  } finally {
-    clearCurrentUser()
+  } catch (err) {
+    // 登出失败时 Session 在服务端仍然有效，必须让管理员知道而没有真正退出。
+    logoutError.value = err?.message
+      ? `退出失败：${err.message}`
+      : '退出失败，请检查网络后重试'
     loggingOut.value = false
-    router.replace({ name: 'admin-login' })
+    return
   }
+  clearCurrentUser()
+  loggingOut.value = false
+  router.replace({ name: 'admin-login' })
 }
 </script>

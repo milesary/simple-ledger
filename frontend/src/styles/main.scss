@@ -250,6 +250,14 @@ p {
   gap: 1.5rem;
 }
 
+.app-header__error {
+  width: min(1200px, 100%);
+  margin: 0.55rem auto 0;
+  color: #b3261e;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -1734,6 +1742,15 @@ p {
   min-height: 70px;
   margin: 0 auto;
   gap: 1.5rem;
+}
+
+.admin-header__error {
+  width: min(1320px, calc(100% - 2rem));
+  margin: 0 auto;
+  padding-bottom: 0.55rem;
+  color: #ffc9c4;
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
 
 .admin-brand {

@@ -21,6 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils import utc_now
 
 
 class User(Base):
@@ -32,7 +33,9 @@ class User(Base):
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="0")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="1")
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     transactions: Mapped[list["Transaction"]] = relationship(back_populates="user")
@@ -54,7 +57,12 @@ class LoginCode(Base):
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
+    # created_at 必须由 Python 写入 UTC：验证码发送间隔与每小时上限都以
+    # utc_now() 为基准比较，若交给数据库 func.now()（MySQL 默认用会话时区）
+    # 会产生时区偏差，导致限流计算错误。
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
 
     __table_args__ = (
         Index("ix_login_codes_email_created_at", "email", "created_at"),
@@ -85,13 +93,14 @@ class Account(Base):
         Boolean, nullable=False, default=False, server_default="0"
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
         server_default=func.now(),
-        onupdate=func.now(),
     )
 
     user: Mapped["User"] = relationship(back_populates="accounts")
@@ -122,8 +131,12 @@ class Transaction(Base):
     payment_method: Mapped[str | None] = mapped_column(String(20), nullable=True)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     import_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, onupdate=utc_now, server_default=func.now()
+    )
 
     user: Mapped["User"] = relationship(back_populates="transactions")
     category: Mapped["Category"] = relationship()
@@ -154,13 +167,14 @@ class Transfer(Base):
     occurred_on: Mapped[date] = mapped_column(Date, nullable=False)
     note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
         server_default=func.now(),
-        onupdate=func.now(),
     )
 
     user: Mapped["User"] = relationship(back_populates="transfers")
@@ -202,13 +216,14 @@ class RecurringTransaction(Base):
         Boolean, nullable=False, default=True, server_default="1"
     )
     created_at: Mapped[datetime] = mapped_column(
-        DateTime, nullable=False, server_default=func.now()
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
         server_default=func.now(),
-        onupdate=func.now(),
     )
 
     user: Mapped["User"] = relationship(back_populates="recurring_transactions")
@@ -250,8 +265,12 @@ class Budget(Base):
     )
     month: Mapped[str] = mapped_column(String(7), nullable=False)  # YYYY-MM
     amount: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, default=utc_now, onupdate=utc_now, server_default=func.now()
+    )
 
     user: Mapped["User"] = relationship(back_populates="budgets")
     category: Mapped["Category | None"] = relationship()
